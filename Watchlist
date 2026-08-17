@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0B0B0C">
+<title>Watchlist</title>
+<style>
+  :root {
+    --bg: #0B0B0C; --panel: #141416; --raised: #1C1C1F;
+    --border: #242428; --border-soft: #1E1E22;
+    --text: #EDEDEF; --mut: #8B8B94; --faint: #55555E; --white: #FFFFFF;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans);
+    padding-bottom: 110px;
+    padding-top: env(safe-area-inset-top);
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+
+  header { padding: 36px 0 20px; border-bottom: 1px solid var(--border); }
+  .eyebrow { font-family: var(--mono); font-size: 10px; letter-spacing: 0.25em; color: var(--faint); margin-bottom: 8px; }
+  h1 { margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+  .stats { display: flex; gap: 24px; margin-top: 18px; font-family: var(--mono); font-size: 12px; }
+  .stat-num { color: var(--white); font-size: 20px; font-weight: 700; }
+  .stat-sub { color: var(--faint); }
+  .stat-label { color: var(--faint); font-size: 9px; letter-spacing: 0.15em; margin-top: 2px; }
+  .save-err { color: var(--mut); font-size: 10px; align-self: center; }
+
+  .filters { display: flex; gap: 8px; padding: 16px 0; }
+  .filters button {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+    padding: 7px 14px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--border); background: transparent; color: var(--mut);
+  }
+  .filters button.active { border-color: var(--white); background: var(--white); color: #000; font-weight: 700; }
+
+  .cat { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 10px; margin-bottom: 14px; overflow: hidden; }
+  .cat-head {
+    width: 100%; background: none; border: none; cursor: pointer; text-align: left;
+    padding: 14px 16px 12px; color: var(--text); display: block;
+  }
+  .cat-title-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .cat-name { font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+  .cat-count { font-family: var(--mono); font-size: 11px; color: var(--faint); flex-shrink: 0; white-space: nowrap; }
+  .bar { height: 2px; background: var(--raised); border-radius: 1px; margin-top: 10px; }
+  .bar-fill { height: 2px; background: var(--white); border-radius: 1px; transition: width 0.3s; }
+  .cat-note { padding: 0 16px 10px; font-size: 12px; color: var(--faint); font-style: italic; }
+  .cat-empty { padding: 8px 16px 16px; font-family: var(--mono); font-size: 11px; color: var(--faint); }
+
+  .item {
+    display: flex; align-items: flex-start; gap: 10px; padding: 10px 16px;
+    border-top: 1px solid var(--border-soft); transition: opacity 0.2s;
+  }
+  .item.done { opacity: 0.4; }
+  .item.done .title { text-decoration: line-through; }
+  .check {
+    width: 20px; height: 20px; border-radius: 4px; border: 1.5px solid var(--faint);
+    background: transparent; color: #000; font-size: 13px; font-weight: 800;
+    line-height: 17px; cursor: pointer; flex-shrink: 0; margin-top: 1px; padding: 0;
+  }
+  .item.done .check { border-color: var(--white); background: var(--white); }
+  .num { font-family: var(--mono); font-size: 11px; color: var(--faint); width: 18px; flex-shrink: 0; margin-top: 3px; text-align: right; }
+  .body { flex: 1; min-width: 0; }
+  .title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .title { font-size: 14px; font-weight: 600; }
+  .tag {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.08em; color: var(--faint);
+    border: 1px solid var(--border-soft); border-radius: 3px; padding: 1px 5px; flex-shrink: 0;
+  }
+  .eps { font-family: var(--mono); font-size: 10px; color: var(--faint); }
+  .note { font-size: 12px; color: var(--mut); margin-top: 3px; line-height: 1.4; }
+  .del { background: none; border: none; color: var(--faint); cursor: pointer; font-size: 15px; padding: 2px 6px; flex-shrink: 0; }
+
+  .add-panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; margin-bottom: 14px; display: none; flex-direction: column; gap: 10px;
+  }
+  .add-panel.open { display: flex; }
+  .add-panel .panel-title { font-family: var(--mono); font-size: 11px; letter-spacing: 0.15em; color: var(--mut); font-weight: 700; }
+  .add-panel input, .add-panel select {
+    background: var(--raised); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); padding: 10px 11px; font-size: 16px; font-family: var(--sans);
+    outline: none; width: 100%;
+  }
+  .row2 { display: flex; gap: 10px; }
+  .row2 > :first-child { flex: 1; }
+  .row2 > .narrow { width: 118px; flex: none; }
+  .btn-row { display: flex; gap: 10px; margin-top: 4px; }
+  .btn-primary {
+    background: var(--white); color: #000; border: none; border-radius: 6px;
+    padding: 11px 18px; font-family: var(--mono); font-size: 12px; font-weight: 800;
+    letter-spacing: 0.1em; cursor: pointer;
+  }
+  .btn-ghost {
+    background: transparent; color: var(--mut); border: 1px solid var(--border);
+    border-radius: 6px; padding: 11px 18px; font-family: var(--mono); font-size: 12px;
+    letter-spacing: 0.1em; cursor: pointer;
+  }
+  #newCatField { display: none; }
+  #newCatField.open { display: block; }
+
+  .fab {
+    position: fixed; bottom: calc(24px + env(safe-area-inset-bottom)); right: 24px;
+    width: 54px; height: 54px; border-radius: 27px; background: var(--white); color: #000;
+    border: none; font-size: 26px; font-weight: 300; cursor: pointer;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.6); line-height: 54px; padding: 0; z-index: 10;
+  }
+  .loading {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); color: var(--faint); font-size: 12px; letter-spacing: 0.15em;
+  }
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">LOADING…</div></div>
+<button class="fab" id="fab" onclick="openAdd()" style="display:none">+</button>
+
+<script>
+// ================= STORAGE (Claude artifact storage OR localStorage) =================
+const KEY = 'watchlist-v1';
+const hasClaudeStorage = typeof window.storage !== 'undefined' && window.storage && typeof window.storage.get === 'function';
+
+async function loadStore() {
+  if (hasClaudeStorage) {
+    try {
+      const res = await window.storage.get(KEY);
+      if (res && res.value) return JSON.parse(res.value);
+    } catch (e) { /* not found */ }
+    return null;
+  }
+  try {
+    const raw = localStorage.getItem(KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+async function saveStore(data) {
+  try {
+    if (hasClaudeStorage) {
+      await window.storage.set(KEY, JSON.stringify(data));
+    } else {
+      localStorage.setItem(KEY, JSON.stringify(data));
+    }
+    setSaveErr(false);
+  } catch (e) { setSaveErr(true); }
+}
+
+// ================= SEED DATA =================
+const uid = p => p + '-' + Math.random().toString(36).slice(2, 8);
+const CORE_CATS = ["anime","mha","gundam","batman","superman","manga","mcu-infinity","mcu-multi-movies","mcu-shows","mcu-upcoming"];
+
+function mk(cat, title, eps, note, type) {
+  return { id: uid('i'), cat, title, eps: eps || 0, note: note || '', type: type || 'series', done: false };
+}
+const M = (cat, title, note) => mk(cat, title, 0, note, 'movie');
+const O = (cat, title, note) => mk(cat, title, 0, note, 'ova');
+const G = (cat, title, note) => mk(cat, title, 0, note, 'manga');
+
+function seedData() {
+  const categories = [
+    { id: 'anime', name: 'Anime Queue', ordered: true, note: "Built in this order to avoid burnout. Don't run two long shonen at once." },
+    { id: 'mha', name: 'My Hero Academia — Complete Order', ordered: true, note: 'Finish or park this before starting the anime queue.' },
+    { id: 'gundam', name: 'Gundam Expansion Track', ordered: true, note: "Don't touch until IBO tells you whether you're in." },
+    { id: 'batman', name: 'DC — Batman', ordered: false, note: "Start with BTAS. It's better written than most live action Batman." },
+    { id: 'superman', name: 'DC — Superman & Team-Ups', ordered: false, note: '' },
+    { id: 'manga', name: 'Manga', ordered: false, note: 'Berserk is the single best starting point.' },
+    { id: 'mcu-infinity', name: 'MCU — Infinity Saga (Phases 1–3)', ordered: true, note: 'Release order. The full 23-movie run through Far From Home.' },
+    { id: 'mcu-multi-movies', name: 'MCU — Multiverse Saga Movies', ordered: true, note: 'Release order, Phase 4 through now.' },
+    { id: 'mcu-shows', name: 'MCU — Disney+ Shows', ordered: true, note: 'Release order. Not all mandatory — WandaVision, Loki, and Daredevil: Born Again matter most for Doomsday.' },
+    { id: 'mcu-upcoming', name: 'MCU — Upcoming (Road to Doomsday & Beyond)', ordered: true, note: 'Confirmed dates as of Aug 2026. Three untitled Marvel movies also hold 2028 slots.' },
+  ];
+
+  const items = [
+    // Anime queue
+    mk('anime', 'Fullmetal Alchemist: Brotherhood', 64, "The foundation. One complete story, no filler. Don't pause it for anything."),
+    mk('anime', 'Steins;Gate', 24, 'Push through the slower first ~8 eps — the back half is the payoff.'),
+    mk('anime', 'Mobile Suit Gundam: Iron-Blooded Orphans', 50, 'Your Gundam entry — you built the Barbatos. Grounded and brutal.'),
+    mk('anime', 'Mob Psycho 100', 37, 'Fast, fun, best animation on the list. Recharge run.'),
+    mk('anime', 'Vinland Saga', 48, 'S2 pivots hard into something quieter and better. Trust the shift.'),
+    mk('anime', "Frieren: Beyond Journey's End", 28, 'Slow, melancholy, gorgeous. Let it breathe.'),
+    mk('anime', 'Hunter x Hunter (2011)', 148, "The monster. Save for when you've got real runway."),
+    mk('anime', 'Neon Genesis Evangelion + End of Evangelion', 26, 'Watch the series, then EoE as the real ending.'),
+    mk('anime', 'Mobile Suit Gundam GQuuuuuuX', 12, 'Eva team doing alternate-timeline Gundam. Deliberately last.'),
+    mk('anime', 'Steins;Gate 0 (optional)', 23, 'Only if the original sinks its hooks in.'),
+
+    // MHA
+    mk('mha', 'Season 1', 13), mk('mha', 'Season 2', 25),
+    O('mha', 'OVA: All Might Rising', 'Prequel to Movie 1'),
+    M('mha', 'Movie 1: Two Heroes', 'Summer break between S2 and S3'),
+    mk('mha', 'Season 3', 25),
+    O('mha', 'OVA: Make It! Do-or-Die Survival Training Pt 1 & 2'),
+    mk('mha', 'Season 4', 25),
+    M('mha', 'Movie 2: Heroes Rising', 'After S4'),
+    O('mha', 'OVA: Departure', 'Setup for Movie 3'),
+    M('mha', "Movie 3: World Heroes' Mission"),
+    mk('mha', 'Season 5', 25),
+    O('mha', 'OVA: Hero League Baseball'),
+    O('mha', 'OVA: Laugh! As If You Are in Hell'),
+    mk('mha', 'Season 6', 25),
+    O('mha', 'OVA: A Piece of Cake', 'Setup for Movie 4'),
+    M('mha', "Movie 4: You're Next"),
+    mk('mha', 'Season 7', 21),
+    mk('mha', 'Season 8 (final)', 0, 'Final season'),
+
+    // Gundam expansion
+    mk('gundam', 'Gundam Wing', 49, 'The standalone banger that hooked the West.'),
+    mk('gundam', 'Gundam 00', 50, 'Sleek, near-future political warfare.'),
+    mk('gundam', 'The Witch from Mercury', 24, 'Short, modern on-ramp option.'),
+    M('gundam', 'Mobile Suit Gundam — Movie Trilogy (1981–82)', 'The recommended way to do the original.'),
+    mk('gundam', 'Zeta Gundam', 50, 'Widely called the best of classic UC.'),
+    M('gundam', "Char's Counterattack", "Payoff to the original cast's saga."),
+    mk('gundam', 'Gundam Unicorn', 7, 'UC at its most beautiful.'),
+
+    // Batman
+    mk('batman', 'Batman: The Animated Series', 85, 'The definitive Batman. Start here.'),
+    M('batman', 'Batman: Mask of the Phantasm', 'One of the best Batman films period.'),
+    mk('batman', 'The New Batman Adventures', 0, 'Continuation of BTAS'),
+    mk('batman', 'Batman Beyond', 0, 'Old Bruce mentors a new Batman. Incredible.'),
+    M('batman', 'Batman Beyond: Return of the Joker', 'Watch the uncut version.'),
+    mk('batman', 'Justice League / JL Unlimited', 0, 'Same animated universe as BTAS'),
+    M('batman', 'Batman Begins', 'Nolan trilogy starts'),
+    M('batman', 'The Dark Knight', "Ledger's Joker"),
+    M('batman', 'The Dark Knight Rises'),
+    M('batman', 'The Batman (2022)', 'Pattinson detective noir'),
+    M('batman', 'Batman (1989)', 'Burton — iconic, dated, worth it for context'),
+    M('batman', 'Batman Returns (1992)'),
+    M('batman', 'Batman: Under the Red Hood', 'Top tier. Jason Todd / Red Hood.'),
+    M('batman', 'Batman: The Dark Knight Returns Pt 1 & 2', 'Frank Miller adaptation. Must-watch.'),
+    M('batman', 'Batman: Year One', 'Grounded noir origin'),
+    M('batman', 'Batman: The Long Halloween Pt 1 & 2', 'Murder mystery, great villain ensemble'),
+    M('batman', 'Batman: Hush'),
+    mk('batman', 'Gotham', 0, 'Starts slow, gets really good. Villains carry it.'),
+    mk('batman', 'The Penguin', 0, 'HBO — crime drama more than superhero show'),
+
+    // Superman & team-ups
+    M('superman', 'Superman: The Movie (1978)', 'Reeve. Defines what Superman is.'),
+    M('superman', 'Superman II', 'Zod. Classic.'),
+    mk('superman', 'Superman: The Animated Series', 0, 'Same universe as BTAS'),
+    M('superman', 'All-Star Superman', 'Arguably the best Superman story told'),
+    M('superman', 'Superman: Man of Tomorrow'),
+    M('superman', 'Superman (2025)', "Gunn's DCU — current canon going forward"),
+    mk('superman', 'My Adventures with Superman', 0, 'Anime-inspired, surprisingly great'),
+    M('superman', 'Batman v Superman: Ultimate Edition', 'Ultimate cut only, not theatrical'),
+    M('superman', 'Justice League: Snyder Cut', '4 hours, way better than theatrical'),
+    M('superman', 'Superman/Batman: Public Enemies'),
+    M('superman', 'Superman/Batman: Apocalypse', 'Introduces Supergirl'),
+
+    // Manga
+    G('manga', 'Berserk', 'The single best starting point.'),
+    G('manga', 'Monster', 'Complete and contained — cleanest finished entry.'),
+    G('manga', 'Vagabond'),
+    G('manga', 'Vinland Saga (manga)'),
+    G('manga', 'Chainsaw Man Part 2', 'Continue where the anime leaves off.'),
+
+    // MCU Infinity Saga
+    M('mcu-infinity', 'Iron Man (2008)', 'Where it all starts'),
+    M('mcu-infinity', 'The Incredible Hulk (2008)', 'Skippable, but Ross matters later'),
+    M('mcu-infinity', 'Iron Man 2 (2010)'),
+    M('mcu-infinity', 'Thor (2011)'),
+    M('mcu-infinity', 'Captain America: The First Avenger (2011)'),
+    M('mcu-infinity', 'The Avengers (2012)'),
+    M('mcu-infinity', 'Iron Man 3 (2013)'),
+    M('mcu-infinity', 'Thor: The Dark World (2013)', 'Weakest of the run — power through'),
+    M('mcu-infinity', 'Captain America: The Winter Soldier (2014)', 'Top-3 MCU movie'),
+    M('mcu-infinity', 'Guardians of the Galaxy (2014)'),
+    M('mcu-infinity', 'Avengers: Age of Ultron (2015)'),
+    M('mcu-infinity', 'Ant-Man (2015)'),
+    M('mcu-infinity', 'Captain America: Civil War (2016)'),
+    M('mcu-infinity', 'Doctor Strange (2016)'),
+    M('mcu-infinity', 'Guardians of the Galaxy Vol. 2 (2017)'),
+    M('mcu-infinity', 'Spider-Man: Homecoming (2017)'),
+    M('mcu-infinity', 'Thor: Ragnarok (2017)'),
+    M('mcu-infinity', 'Black Panther (2018)'),
+    M('mcu-infinity', 'Avengers: Infinity War (2018)', 'Watch Endgame directly after'),
+    M('mcu-infinity', 'Ant-Man and the Wasp (2018)'),
+    M('mcu-infinity', 'Captain Marvel (2019)'),
+    M('mcu-infinity', 'Avengers: Endgame (2019)'),
+    M('mcu-infinity', 'Spider-Man: Far From Home (2019)', 'Infinity Saga epilogue'),
+
+    // MCU Multiverse Saga movies
+    M('mcu-multi-movies', 'Black Widow (2021)'),
+    M('mcu-multi-movies', 'Shang-Chi and the Legend of the Ten Rings (2021)'),
+    M('mcu-multi-movies', 'Eternals (2021)'),
+    M('mcu-multi-movies', 'Spider-Man: No Way Home (2021)'),
+    M('mcu-multi-movies', 'Doctor Strange in the Multiverse of Madness (2022)', 'Watch WandaVision first'),
+    M('mcu-multi-movies', 'Thor: Love and Thunder (2022)'),
+    M('mcu-multi-movies', 'Black Panther: Wakanda Forever (2022)'),
+    M('mcu-multi-movies', 'Ant-Man and the Wasp: Quantumania (2023)'),
+    M('mcu-multi-movies', 'Guardians of the Galaxy Vol. 3 (2023)'),
+    M('mcu-multi-movies', 'The Marvels (2023)', 'Ms. Marvel show gives context'),
+    M('mcu-multi-movies', 'Deadpool & Wolverine (2024)'),
+    M('mcu-multi-movies', 'Captain America: Brave New World (2025)'),
+    M('mcu-multi-movies', 'Thunderbolts* (2025)', 'Direct Doomsday setup — the New Avengers'),
+    M('mcu-multi-movies', 'The Fantastic Four: First Steps (2025)', 'Direct Doomsday setup'),
+    M('mcu-multi-movies', 'Spider-Man: Brand New Day (2026)', 'Just released — last movie before Doomsday'),
+
+    // MCU shows
+    mk('mcu-shows', 'WandaVision (2021)', 9, 'Essential — leads into Multiverse of Madness and Vision Quest'),
+    mk('mcu-shows', 'The Falcon and the Winter Soldier (2021)', 6, 'Sets up Brave New World'),
+    mk('mcu-shows', 'Loki — Season 1 (2021)', 6, 'Essential — the multiverse starts here'),
+    mk('mcu-shows', 'What If…? — Season 1 (2021)', 9, 'Animated, optional'),
+    mk('mcu-shows', 'Hawkeye (2021)', 6),
+    mk('mcu-shows', 'Moon Knight (2022)', 6),
+    mk('mcu-shows', 'Ms. Marvel (2022)', 6),
+    mk('mcu-shows', 'She-Hulk: Attorney at Law (2022)', 9),
+    M('mcu-shows', 'Werewolf by Night (2022)', 'Halloween special'),
+    M('mcu-shows', 'The Guardians of the Galaxy Holiday Special (2022)'),
+    mk('mcu-shows', 'Secret Invasion (2023)', 6, 'Skippable, honestly'),
+    mk('mcu-shows', 'Loki — Season 2 (2023)', 6, 'Essential'),
+    mk('mcu-shows', 'What If…? — Season 2 (2023)', 9, 'Optional'),
+    mk('mcu-shows', 'Echo (2024)', 5),
+    mk('mcu-shows', 'Agatha All Along (2024)', 9),
+    mk('mcu-shows', 'What If…? — Season 3 (2024)', 8, 'Optional'),
+    mk('mcu-shows', 'Your Friendly Neighborhood Spider-Man — S1 (2025)', 10, 'Animated'),
+    mk('mcu-shows', 'Daredevil: Born Again — Season 1 (2025)', 9),
+    mk('mcu-shows', 'Ironheart (2025)', 6),
+    mk('mcu-shows', 'Eyes of Wakanda (2025)', 4, 'Animated'),
+    mk('mcu-shows', 'Marvel Zombies (2025)', 4, 'Animated'),
+    mk('mcu-shows', 'Wonder Man (2025–26)', 8),
+    mk('mcu-shows', 'Daredevil: Born Again — Season 2 (2026)', 8),
+
+    // MCU upcoming
+    mk('mcu-upcoming', 'Your Friendly Neighborhood Spider-Man — S2 (2026)', 0, 'Animated'),
+    mk('mcu-upcoming', 'Vision Quest — Oct 14, 2026', 0, 'Closes the WandaVision trilogy'),
+    M('mcu-upcoming', 'Avengers: Doomsday — Dec 18, 2026', 'RDJ as Doctor Doom. The big one.'),
+    mk('mcu-upcoming', 'Daredevil: Born Again — Season 3 (Mar 2027)', 0),
+    M('mcu-upcoming', 'Avengers: Secret Wars — Dec 17, 2027', 'Saga conclusion — likely soft reboot'),
+    M('mcu-upcoming', 'Black Panther 3 — Dec 2028'),
+  ];
+
+  return { categories, items };
+}
+
+// ================= STATE =================
+let data = null;
+let filter = 'all';
+let collapsed = {};
+let addOpen = false;
+let saveErr = false;
+
+const TYPE_LABEL = { series: 'SERIES', movie: 'MOVIE', ova: 'OVA', manga: 'MANGA' };
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function setSaveErr(v) {
+  saveErr = v;
+  const el = document.getElementById('saveErr');
+  if (el) el.style.display = v ? 'block' : 'none';
+}
+
+// ================= ACTIONS =================
+function toggleItem(id) {
+  const it = data.items.find(i => i.id === id);
+  if (it) { it.done = !it.done; saveStore(data); render(); }
+}
+function deleteItem(id) {
+  data.items = data.items.filter(i => i.id !== id);
+  const used = new Set(data.items.map(i => i.cat));
+  data.categories = data.categories.filter(c => used.has(c.id) || CORE_CATS.includes(c.id));
+  saveStore(data); render();
+}
+function toggleCat(id) { collapsed[id] = !collapsed[id]; render(); }
+function setFilter(f) { filter = f; render(); }
+function openAdd() { addOpen = true; render(); }
+function closeAdd() { addOpen = false; render(); }
+function onCatSelect(sel) {
+  document.getElementById('fNewCat').style.display = sel.value === '__new__' ? 'block' : 'none';
+}
+function submitAdd() {
+  const title = document.getElementById('fTitle').value.trim();
+  const catSel = document.getElementById('fCat').value;
+  const newCat = document.getElementById('fNewCat').value.trim();
+  const type = document.getElementById('fType').value;
+  const eps = parseInt(document.getElementById('fEps').value, 10) || 0;
+  const note = document.getElementById('fNote').value.trim();
+  if (!title) return;
+
+  let catId = catSel;
+  if (catSel === '__new__') {
+    if (!newCat) return;
+    const existing = data.categories.find(c => c.name.toLowerCase() === newCat.toLowerCase());
+    if (existing) catId = existing.id;
+    else {
+      catId = uid('c');
+      data.categories.push({ id: catId, name: newCat, ordered: false, note: '' });
+    }
+  }
+  if (!catId) return;
+
+  data.items.push({ id: uid('i'), cat: catId, title, type, eps, note, done: false });
+  addOpen = false;
+  saveStore(data); render();
+}
+
+// ================= RENDER =================
+function render() {
+  const app = document.getElementById('app');
+  const fab = document.getElementById('fab');
+  fab.style.display = addOpen ? 'none' : 'block';
+
+  const done = data.items.filter(i => i.done).length;
+  const total = data.items.length;
+  const epsLeft = data.items.filter(i => !i.done).reduce((a, i) => a + (i.eps || 0), 0);
+
+  let html = '<div class="wrap">';
+  html += '<header>' +
+    '<div class="eyebrow">JONATHAN / MEDIA MANIFEST</div>' +
+    '<h1>Watchlist</h1>' +
+    '<div class="stats">' +
+      '<div><span class="stat-num">' + done + '</span><span class="stat-sub"> / ' + total + '</span><div class="stat-label">CHECKED OFF</div></div>' +
+      '<div><span class="stat-num">' + epsLeft + '</span><div class="stat-label">EPISODES LEFT</div></div>' +
+      '<div id="saveErr" class="save-err" style="display:' + (saveErr ? 'block' : 'none') + '">save failed — changes may not persist</div>' +
+    '</div></header>';
+
+  html += '<div class="filters">' +
+    [['all','ALL'],['left','REMAINING'],['done','DONE']].map(([k,l]) =>
+      '<button class="' + (filter === k ? 'active' : '') + '" onclick="setFilter(\'' + k + '\')">' + l + '</button>'
+    ).join('') + '</div>';
+
+  // add panel
+  html += '<div class="add-panel' + (addOpen ? ' open' : '') + '">' +
+    '<div class="panel-title">ADD TO WATCHLIST</div>' +
+    '<input id="fTitle" placeholder="Title">' +
+    '<div class="row2">' +
+      '<select id="fCat" onchange="onCatSelect(this)"><option value="">Category…</option>' +
+        data.categories.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('') +
+        '<option value="__new__">+ New category</option></select>' +
+      '<select id="fType" class="narrow"><option value="series">Series</option><option value="movie">Movie</option><option value="ova">OVA</option><option value="manga">Manga</option></select>' +
+    '</div>' +
+    '<input id="fNewCat" placeholder="New category name" style="display:none" >' +
+    '<div class="row2"><input id="fEps" class="narrow" placeholder="Episodes" inputmode="numeric"><input id="fNote" placeholder="Note (optional)"></div>' +
+    '<div class="btn-row"><button class="btn-primary" onclick="submitAdd()">ADD</button><button class="btn-ghost" onclick="closeAdd()">CANCEL</button></div>' +
+  '</div>';
+
+  // categories
+  for (const cat of data.categories) {
+    const all = data.items.filter(i => i.cat === cat.id);
+    if (all.length === 0) continue;
+    const shown = all.filter(i => filter === 'all' ? true : filter === 'done' ? i.done : !i.done);
+    const dc = all.filter(i => i.done).length;
+    const pct = all.length ? Math.round(dc / all.length * 100) : 0;
+    const isCol = collapsed[cat.id];
+
+    html += '<section class="cat">' +
+      '<button class="cat-head" onclick="toggleCat(\'' + cat.id + '\')">' +
+        '<div class="cat-title-row"><span class="cat-name">' + esc(cat.name) + '</span>' +
+        '<span class="cat-count">' + dc + '/' + all.length + ' · ' + pct + '% ' + (isCol ? '▸' : '▾') + '</span></div>' +
+        '<div class="bar"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
+      '</button>';
+
+    if (!isCol) {
+      if (cat.note) html += '<div class="cat-note">' + esc(cat.note) + '</div>';
+      if (shown.length === 0) {
+        html += '<div class="cat-empty">' + (filter === 'done' ? 'Nothing checked off here yet.' : 'All clear.') + '</div>';
+      }
+      for (const it of shown) {
+        const n = cat.ordered ? all.indexOf(it) + 1 : null;
+        html += '<div class="item' + (it.done ? ' done' : '') + '">' +
+          '<button class="check" onclick="toggleItem(\'' + it.id + '\')" aria-label="toggle">' + (it.done ? '✓' : '') + '</button>' +
+          (n ? '<span class="num">' + String(n).padStart(2, '0') + '</span>' : '') +
+          '<div class="body"><div class="title-row">' +
+            '<span class="title">' + esc(it.title) + '</span>' +
+            '<span class="tag">' + (TYPE_LABEL[it.type] || 'SERIES') + '</span>' +
+            (it.eps > 0 ? '<span class="eps">' + it.eps + ' EP</span>' : '') +
+          '</div>' +
+          (it.note ? '<div class="note">' + esc(it.note) + '</div>' : '') +
+          '</div>' +
+          '<button class="del" onclick="deleteItem(\'' + it.id + '\')" aria-label="delete">×</button>' +
+        '</div>';
+      }
+    }
+    html += '</section>';
+  }
+
+  html += '</div>';
+  app.innerHTML = html;
+}
+
+// ================= INIT =================
+(async function init() {
+  const stored = await loadStore();
+  if (stored) {
+    data = stored;
+  } else {
+    data = seedData();
+    await saveStore(data);
+  }
+  render();
+})();
+</script>
+</body>
+</html>
